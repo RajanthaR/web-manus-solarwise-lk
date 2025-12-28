@@ -43,39 +43,46 @@
 }
 
 :root {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-600);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
+  /* Solar Green Theme */
+  --primary: oklch(0.55 0.18 145);
+  --primary-foreground: oklch(0.99 0.005 90);
+  --sidebar-primary: oklch(0.50 0.16 145);
+  --sidebar-primary-foreground: oklch(0.99 0.005 90);
+  --chart-1: oklch(0.55 0.18 145);
+  --chart-2: oklch(0.65 0.20 85);
+  --chart-3: oklch(0.60 0.15 200);
+  --chart-4: oklch(0.70 0.12 50);
+  --chart-5: oklch(0.50 0.15 280);
   --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.235 0.015 65);
+  --background: oklch(0.99 0.005 90);
+  --foreground: oklch(0.20 0.02 260);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.235 0.015 65);
+  --card-foreground: oklch(0.20 0.02 260);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
-  --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.141 0.005 285.823);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.623 0.214 259.815);
+  --popover-foreground: oklch(0.20 0.02 260);
+  --secondary: oklch(0.96 0.02 90);
+  --secondary-foreground: oklch(0.30 0.02 260);
+  --muted: oklch(0.96 0.01 90);
+  --muted-foreground: oklch(0.50 0.02 260);
+  --accent: oklch(0.65 0.20 85);
+  --accent-foreground: oklch(0.20 0.02 260);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(0.99 0.005 90);
+  --border: oklch(0.90 0.01 90);
+  --input: oklch(0.90 0.01 90);
+  --ring: oklch(0.55 0.18 145);
   --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.235 0.015 65);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.623 0.214 259.815);
+  --sidebar-foreground: oklch(0.20 0.02 260);
+  --sidebar-accent: oklch(0.96 0.02 90);
+  --sidebar-accent-foreground: oklch(0.20 0.02 260);
+  --sidebar-border: oklch(0.90 0.01 90);
+  --sidebar-ring: oklch(0.55 0.18 145);
+  
+  /* Solar specific colors */
+  --solar-green: oklch(0.55 0.18 145);
+  --solar-yellow: oklch(0.85 0.18 90);
+  --solar-orange: oklch(0.70 0.18 60);
+  --solar-blue: oklch(0.55 0.15 230);
 }
 
 .dark {
@@ -119,6 +126,18 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: "Inter", "Noto Sans Sinhala", system-ui, sans-serif;
+  }
+  
+  /* Sinhala text styling */
+  .sinhala {
+    font-family: "Noto Sans Sinhala", "Inter", system-ui, sans-serif;
+  }
+  
+  /* Technical terms in English */
+  .tech-term {
+    font-family: "Inter", system-ui, sans-serif;
+    font-weight: 500;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -174,4 +193,92 @@
       max-width: 1280px; /* Standard content width */
     }
   }
+}
+
+/* Solar gradient backgrounds */
+.solar-gradient {
+  background: linear-gradient(135deg, oklch(0.55 0.18 145) 0%, oklch(0.65 0.20 85) 100%);
+}
+
+.solar-gradient-light {
+  background: linear-gradient(135deg, oklch(0.95 0.05 145) 0%, oklch(0.98 0.03 85) 100%);
+}
+
+/* Quality score badges */
+.quality-excellent {
+  @apply bg-green-100 text-green-800 border-green-200;
+}
+
+.quality-good {
+  @apply bg-blue-100 text-blue-800 border-blue-200;
+}
+
+.quality-average {
+  @apply bg-yellow-100 text-yellow-800 border-yellow-200;
+}
+
+.quality-poor {
+  @apply bg-red-100 text-red-800 border-red-200;
+}
+
+/* Card hover effects */
+.card-hover {
+  @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: oklch(0.96 0.01 90);
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.75 0.05 145);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.55 0.18 145);
+}
+
+/* Animation for solar rays */
+@keyframes solar-pulse {
+  0%, 100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.solar-pulse {
+  animation: solar-pulse 3s ease-in-out infinite;
+}
+
+/* ROI indicator colors */
+.roi-excellent {
+  @apply text-green-600;
+}
+
+.roi-good {
+  @apply text-blue-600;
+}
+
+.roi-average {
+  @apply text-yellow-600;
+}
+
+.roi-poor {
+  @apply text-red-600;
 }
