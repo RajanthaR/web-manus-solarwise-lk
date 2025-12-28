@@ -10,7 +10,9 @@ import {
   solarPackages, InsertSolarPackage, SolarPackage,
   cebTariffs, InsertCebTariff, CebTariff,
   inquiries, InsertInquiry, Inquiry,
-  chatHistory, InsertChatMessage, ChatMessage
+  chatHistory, InsertChatMessage, ChatMessage,
+  reviews, InsertReview, Review,
+  reviewVotes, InsertReviewVote, ReviewVote
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -716,5 +718,250 @@ export async function getKnowledgeBase() {
     batteries: batteriesList,
     tariffs,
     packages
+  };
+}
+
+
+// ============ REVIEWS ============
+export async function createReview(review: Omit<InsertReview, 'id' | 'createdAt' | 'updatedAt'>): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(reviews).values(review);
+  return result[0].insertId;
+}
+
+export async function getReviewById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(reviews).where(eq(reviews.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getReviewsByPackage(packageId: number, status: 'pending' | 'approved' | 'rejected' | null = 'approved') {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [eq(reviews.packageId, packageId)];
+  if (status) {
+    conditions.push(eq(reviews.status, status));
+  }
+  
+  const result = await db.select().from(reviews)
+    .where(and(...conditions))
+    .orderBy(desc(reviews.createdAt));
+  
+  return result;
+}
+
+export async function getReviewsByProvider(providerId: number, status: 'pending' | 'approved' | 'rejected' | null = 'approved') {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [eq(reviews.providerId, providerId)];
+  if (status) {
+    conditions.push(eq(reviews.status, status));
+  }
+  
+  const result = await db.select().from(reviews)
+    .where(and(...conditions))
+    .orderBy(desc(reviews.createdAt));
+  
+  return result;
+}
+
+export async function getReviewsByUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.select().from(reviews)
+    .where(eq(reviews.userId, userId))
+    .orderBy(desc(reviews.createdAt));
+  
+  return result;
+}
+
+export async function getAllReviews(status?: 'pending' | 'approved' | 'rejected') {
+  const db = await getDb();
+  if (!db) return [];
+  
+  let query = db.select().from(reviews);
+  if (status) {
+    query = query.where(eq(reviews.status, status)) as typeof query;
+  }
+  
+  const result = await query.orderBy(desc(reviews.createdAt));
+  return result;
+}
+
+export async function getReviewsWithDetails(status?: 'pending' | 'approved' | 'rejected') {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const reviewsList = await getAllReviews(status);
+  
+  // Get user, package, and provider details for each review
+  const reviewsWithDetails = await Promise.all(reviewsList.map(async (review) => {
+    const [user, pkg, provider] = await Promise.all([
+      db.select().from(users).where(eq(users.id, review.userId)).limit(1),
+      review.packageId ? db.select().from(solarPackages).where(eq(solarPackages.id, review.packageId)).limit(1) : Promise.resolve([]),
+      review.providerId ? db.select().from(providers).where(eq(providers.id, review.providerId)).limit(1) : Promise.resolve([])
+    ]);
+    
+    return {
+      review,
+      user: user[0] || null,
+      package: pkg[0] || null,
+      provider: provider[0] || null
+    };
+  }));
+  
+  return reviewsWithDetails;
+}
+
+export async function updateReview(id: number, data: Partial<InsertReview>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(reviews).set(data).where(eq(reviews.id, id));
+}
+
+export async function updateReviewStatus(id: number, status: 'pending' | 'approved' | 'rejected', moderatorNote?: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(reviews).set({ status, moderatorNote }).where(eq(reviews.id, id));
+}
+
+export async function deleteReview(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(reviews).where(eq(reviews.id, id));
+}
+
+export async function getPackageAverageRating(packageId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select({
+    avgOverall: sql<number>`AVG(${reviews.overallRating})`,
+    avgInstallation: sql<number>`AVG(${reviews.installationRating})`,
+    avgPerformance: sql<number>`AVG(${reviews.performanceRating})`,
+    avgSupport: sql<number>`AVG(${reviews.supportRating})`,
+    avgValue: sql<number>`AVG(${reviews.valueRating})`,
+    totalReviews: sql<number>`COUNT(*)`,
+  }).from(reviews)
+    .where(and(
+      eq(reviews.packageId, packageId),
+      eq(reviews.status, 'approved')
+    ));
+  
+  if (!result[0] || result[0].totalReviews === 0) return null;
+  
+  return {
+    overall: Math.round(result[0].avgOverall * 10) / 10,
+    installation: result[0].avgInstallation ? Math.round(result[0].avgInstallation * 10) / 10 : null,
+    performance: result[0].avgPerformance ? Math.round(result[0].avgPerformance * 10) / 10 : null,
+    support: result[0].avgSupport ? Math.round(result[0].avgSupport * 10) / 10 : null,
+    value: result[0].avgValue ? Math.round(result[0].avgValue * 10) / 10 : null,
+    totalReviews: result[0].totalReviews,
+  };
+}
+
+export async function getProviderAverageRating(providerId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select({
+    avgOverall: sql<number>`AVG(${reviews.overallRating})`,
+    avgInstallation: sql<number>`AVG(${reviews.installationRating})`,
+    avgPerformance: sql<number>`AVG(${reviews.performanceRating})`,
+    avgSupport: sql<number>`AVG(${reviews.supportRating})`,
+    avgValue: sql<number>`AVG(${reviews.valueRating})`,
+    totalReviews: sql<number>`COUNT(*)`,
+  }).from(reviews)
+    .where(and(
+      eq(reviews.providerId, providerId),
+      eq(reviews.status, 'approved')
+    ));
+  
+  if (!result[0] || result[0].totalReviews === 0) return null;
+  
+  return {
+    overall: Math.round(result[0].avgOverall * 10) / 10,
+    installation: result[0].avgInstallation ? Math.round(result[0].avgInstallation * 10) / 10 : null,
+    performance: result[0].avgPerformance ? Math.round(result[0].avgPerformance * 10) / 10 : null,
+    support: result[0].avgSupport ? Math.round(result[0].avgSupport * 10) / 10 : null,
+    value: result[0].avgValue ? Math.round(result[0].avgValue * 10) / 10 : null,
+    totalReviews: result[0].totalReviews,
+  };
+}
+
+// ============ REVIEW VOTES ============
+export async function voteReview(reviewId: number, userId: number, isHelpful: boolean): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if user already voted
+  const existingVote = await db.select().from(reviewVotes)
+    .where(and(
+      eq(reviewVotes.reviewId, reviewId),
+      eq(reviewVotes.userId, userId)
+    )).limit(1);
+  
+  if (existingVote.length > 0) {
+    // Update existing vote
+    await db.update(reviewVotes)
+      .set({ isHelpful })
+      .where(eq(reviewVotes.id, existingVote[0].id));
+  } else {
+    // Create new vote
+    await db.insert(reviewVotes).values({ reviewId, userId, isHelpful });
+  }
+  
+  // Update helpful count on review
+  const helpfulVotes = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(reviewVotes)
+    .where(and(
+      eq(reviewVotes.reviewId, reviewId),
+      eq(reviewVotes.isHelpful, true)
+    ));
+  
+  await db.update(reviews)
+    .set({ helpfulCount: helpfulVotes[0]?.count || 0 })
+    .where(eq(reviews.id, reviewId));
+}
+
+export async function getUserVoteForReview(reviewId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(reviewVotes)
+    .where(and(
+      eq(reviewVotes.reviewId, reviewId),
+      eq(reviewVotes.userId, userId)
+    )).limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getReviewStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, pending: 0, approved: 0, rejected: 0 };
+  
+  const [total, pending, approved, rejected] = await Promise.all([
+    db.select({ count: sql<number>`COUNT(*)` }).from(reviews),
+    db.select({ count: sql<number>`COUNT(*)` }).from(reviews).where(eq(reviews.status, 'pending')),
+    db.select({ count: sql<number>`COUNT(*)` }).from(reviews).where(eq(reviews.status, 'approved')),
+    db.select({ count: sql<number>`COUNT(*)` }).from(reviews).where(eq(reviews.status, 'rejected')),
+  ]);
+  
+  return {
+    total: total[0]?.count || 0,
+    pending: pending[0]?.count || 0,
+    approved: approved[0]?.count || 0,
+    rejected: rejected[0]?.count || 0,
   };
 }

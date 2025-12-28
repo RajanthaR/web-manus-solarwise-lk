@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useParams, Link } from "wouter";
 import { ArrowLeft, Star, TrendingUp, Zap, Shield, Phone, Mail, Globe, CheckCircle, XCircle, Info } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import ReviewSection from "@/components/ReviewSection";
 
 export default function PackageDetail() {
   const { id } = useParams<{ id: string }>();
@@ -376,6 +377,13 @@ export default function PackageDetail() {
                 </CardContent>
               </Card>
             )}
+
+            {/* User Reviews Section */}
+            <ReviewSection
+              packageId={packageId}
+              packageName={pkg.name}
+              providerName={provider?.name}
+            />
           </div>
 
           {/* Sidebar */}

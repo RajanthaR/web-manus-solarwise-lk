@@ -213,3 +213,56 @@ export const chatHistory = mysqlTable("chat_history", {
 
 export type ChatMessage = typeof chatHistory.$inferSelect;
 export type InsertChatMessage = typeof chatHistory.$inferInsert;
+
+
+// ============ USER REVIEWS ============
+export const reviews = mysqlTable("reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  packageId: int("packageId"),
+  providerId: int("providerId"),
+  // Rating fields
+  overallRating: int("overallRating").notNull(), // 1-5 stars
+  installationRating: int("installationRating"), // 1-5 stars
+  performanceRating: int("performanceRating"), // 1-5 stars
+  supportRating: int("supportRating"), // 1-5 stars
+  valueRating: int("valueRating"), // 1-5 stars
+  // Review content
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  pros: json("pros").$type<string[]>(),
+  cons: json("cons").$type<string[]>(),
+  // Installation details
+  installationDate: timestamp("installationDate"),
+  systemSize: decimal("systemSize", { precision: 6, scale: 2 }), // kW installed
+  monthlyGeneration: decimal("monthlyGeneration", { precision: 8, scale: 2 }), // actual kWh
+  previousBill: decimal("previousBill", { precision: 10, scale: 2 }), // LKR before solar
+  currentBill: decimal("currentBill", { precision: 10, scale: 2 }), // LKR after solar
+  // Media
+  photos: json("photos").$type<string[]>(),
+  // Verification & moderation
+  isVerified: boolean("isVerified").default(false),
+  verificationNote: text("verificationNote"),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  moderatorNote: text("moderatorNote"),
+  // Engagement
+  helpfulCount: int("helpfulCount").default(0),
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Review = typeof reviews.$inferSelect;
+export type InsertReview = typeof reviews.$inferInsert;
+
+// ============ REVIEW HELPFUL VOTES ============
+export const reviewVotes = mysqlTable("review_votes", {
+  id: int("id").autoincrement().primaryKey(),
+  reviewId: int("reviewId").notNull(),
+  userId: int("userId").notNull(),
+  isHelpful: boolean("isHelpful").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ReviewVote = typeof reviewVotes.$inferSelect;
+export type InsertReviewVote = typeof reviewVotes.$inferInsert;

@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Building2, Package, Sun, Zap, Battery, Plus, Pencil, Trash2, Shield, Loader2 } from "lucide-react";
+import { Building2, Package, Sun, Zap, Battery, Plus, Pencil, Trash2, Shield, Loader2, MessageSquare, CheckCircle, XCircle, Star } from "lucide-react";
 
 export default function Admin() {
   const { tab } = useParams<{ tab?: string }>();
@@ -151,7 +151,7 @@ export default function Admin() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setLocation(`/admin/${v}`)}>
-          <TabsList className="grid w-full max-w-2xl grid-cols-5 mb-6">
+          <TabsList className="grid w-full max-w-3xl grid-cols-6 mb-6">
             <TabsTrigger value="providers" className="gap-2">
               <Building2 className="w-4 h-4" />
               <span className="hidden sm:inline">Providers</span>
@@ -171,6 +171,10 @@ export default function Admin() {
             <TabsTrigger value="batteries" className="gap-2">
               <Battery className="w-4 h-4" />
               <span className="hidden sm:inline">Batteries</span>
+            </TabsTrigger>
+            <TabsTrigger value="reviews" className="gap-2">
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden sm:inline">Reviews</span>
             </TabsTrigger>
           </TabsList>
 
@@ -448,8 +452,331 @@ export default function Admin() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Reviews Tab */}
+          <TabsContent value="reviews">
+            <ReviewsManagement />
+          </TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+// Reviews Management Component
+function ReviewsManagement() {
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
+  const [selectedReview, setSelectedReview] = useState<any>(null);
+  const [moderatorNote, setModeratorNote] = useState('');
+  
+  const { data: reviews, refetch } = trpc.reviews.listAll.useQuery(
+    statusFilter === 'all' ? {} : { status: statusFilter }
+  );
+  const { data: stats } = trpc.reviews.stats.useQuery();
+  
+  const moderateMutation = trpc.reviews.moderate.useMutation({
+    onSuccess: () => {
+      toast.success('Review moderated successfully');
+      refetch();
+      setSelectedReview(null);
+      setModeratorNote('');
+    },
+    onError: (error: any) => toast.error(error.message),
+  });
+  
+  const verifyMutation = trpc.reviews.verify.useMutation({
+    onSuccess: () => {
+      toast.success('Review verification updated');
+      refetch();
+    },
+    onError: (error: any) => toast.error(error.message),
+  });
+
+  const handleModerate = (status: 'approved' | 'rejected') => {
+    if (!selectedReview) return;
+    moderateMutation.mutate({
+      id: selectedReview.review.id,
+      status,
+      moderatorNote: moderatorNote || undefined,
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card className="p-4">
+          <div className="text-2xl font-bold">{stats?.total || 0}</div>
+          <div className="text-sm text-muted-foreground">Total Reviews</div>
+        </Card>
+        <Card className="p-4 border-yellow-200 bg-yellow-50">
+          <div className="text-2xl font-bold text-yellow-700">{stats?.pending || 0}</div>
+          <div className="text-sm text-yellow-600">Pending</div>
+        </Card>
+        <Card className="p-4 border-green-200 bg-green-50">
+          <div className="text-2xl font-bold text-green-700">{stats?.approved || 0}</div>
+          <div className="text-sm text-green-600">Approved</div>
+        </Card>
+        <Card className="p-4 border-red-200 bg-red-50">
+          <div className="text-2xl font-bold text-red-700">{stats?.rejected || 0}</div>
+          <div className="text-sm text-red-600">Rejected</div>
+        </Card>
+      </div>
+
+      {/* Filter */}
+      <div className="flex gap-2">
+        <Button 
+          variant={statusFilter === 'all' ? 'default' : 'outline'}
+          onClick={() => setStatusFilter('all')}
+        >
+          All
+        </Button>
+        <Button 
+          variant={statusFilter === 'pending' ? 'default' : 'outline'}
+          onClick={() => setStatusFilter('pending')}
+        >
+          Pending ({stats?.pending || 0})
+        </Button>
+        <Button 
+          variant={statusFilter === 'approved' ? 'default' : 'outline'}
+          onClick={() => setStatusFilter('approved')}
+        >
+          Approved
+        </Button>
+        <Button 
+          variant={statusFilter === 'rejected' ? 'default' : 'outline'}
+          onClick={() => setStatusFilter('rejected')}
+        >
+          Rejected
+        </Button>
+      </div>
+
+      {/* Reviews Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="sinhala">
+            <span className="tech-term">Reviews</span> කළමනාකරණය
+          </CardTitle>
+          <CardDescription>
+            Approve or reject user reviews
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>Rating</TableHead>
+                <TableHead>Title</TableHead>
+                <TableHead>Package/Provider</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {reviews?.map((item) => (
+                <TableRow key={item.review.id}>
+                  <TableCell>
+                    <div className="font-medium">{item.user?.name || 'Unknown'}</div>
+                    <div className="text-xs text-muted-foreground">{item.user?.email}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-4 h-4 ${star <= item.review.overallRating ? 'fill-yellow-400 text-yellow-400' : 'fill-gray-200 text-gray-200'}`}
+                        />
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="max-w-[200px] truncate font-medium">{item.review.title}</div>
+                    <div className="text-xs text-muted-foreground max-w-[200px] truncate">
+                      {item.review.content.substring(0, 50)}...
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {item.package?.name || item.provider?.name || '-'}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={
+                      item.review.status === 'approved' ? 'default' :
+                      item.review.status === 'rejected' ? 'destructive' : 'secondary'
+                    }>
+                      {item.review.status}
+                    </Badge>
+                    {item.review.isVerified && (
+                      <Badge variant="outline" className="ml-1 text-green-600">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Verified
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setSelectedReview(item)}
+                          >
+                            View
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle>Review Details</DialogTitle>
+                          </DialogHeader>
+                          {selectedReview && (
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-medium">{selectedReview.user?.name}</div>
+                                  <div className="text-sm text-muted-foreground">{selectedReview.user?.email}</div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                      key={star}
+                                      className={`w-5 h-5 ${star <= selectedReview.review.overallRating ? 'fill-yellow-400 text-yellow-400' : 'fill-gray-200 text-gray-200'}`}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <h4 className="font-semibold text-lg">{selectedReview.review.title}</h4>
+                                <p className="text-muted-foreground mt-2">{selectedReview.review.content}</p>
+                              </div>
+                              
+                              {(selectedReview.review.pros?.length > 0 || selectedReview.review.cons?.length > 0) && (
+                                <div className="grid grid-cols-2 gap-4">
+                                  {selectedReview.review.pros?.length > 0 && (
+                                    <div>
+                                      <h5 className="font-medium text-green-600 mb-2">Pros</h5>
+                                      <ul className="space-y-1">
+                                        {selectedReview.review.pros.map((pro: string, i: number) => (
+                                          <li key={i} className="text-sm flex items-center gap-2">
+                                            <CheckCircle className="w-3 h-3 text-green-500" />
+                                            {pro}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                  {selectedReview.review.cons?.length > 0 && (
+                                    <div>
+                                      <h5 className="font-medium text-red-600 mb-2">Cons</h5>
+                                      <ul className="space-y-1">
+                                        {selectedReview.review.cons.map((con: string, i: number) => (
+                                          <li key={i} className="text-sm flex items-center gap-2">
+                                            <XCircle className="w-3 h-3 text-red-500" />
+                                            {con}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {selectedReview.review.systemSize && (
+                                <div className="bg-muted/30 p-4 rounded-lg">
+                                  <h5 className="font-medium mb-2">Installation Details</h5>
+                                  <div className="grid grid-cols-2 gap-2 text-sm">
+                                    <div>System Size: {selectedReview.review.systemSize} kW</div>
+                                    {selectedReview.review.monthlyGeneration && (
+                                      <div>Monthly Generation: {selectedReview.review.monthlyGeneration} kWh</div>
+                                    )}
+                                    {selectedReview.review.previousBill && (
+                                      <div>Previous Bill: LKR {Number(selectedReview.review.previousBill).toLocaleString()}</div>
+                                    )}
+                                    {selectedReview.review.currentBill && (
+                                      <div>Current Bill: LKR {Number(selectedReview.review.currentBill).toLocaleString()}</div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              <div className="space-y-2">
+                                <Label>Moderator Note</Label>
+                                <Textarea
+                                  value={moderatorNote}
+                                  onChange={(e) => setModeratorNote(e.target.value)}
+                                  placeholder="Add a note (optional)"
+                                />
+                              </div>
+                              
+                              <div className="flex gap-2 justify-between">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => verifyMutation.mutate({
+                                    id: selectedReview.review.id,
+                                    isVerified: !selectedReview.review.isVerified,
+                                  })}
+                                >
+                                  {selectedReview.review.isVerified ? 'Remove Verification' : 'Mark as Verified'}
+                                </Button>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="destructive"
+                                    onClick={() => handleModerate('rejected')}
+                                    disabled={moderateMutation.isPending}
+                                  >
+                                    <XCircle className="w-4 h-4 mr-2" />
+                                    Reject
+                                  </Button>
+                                  <Button
+                                    onClick={() => handleModerate('approved')}
+                                    disabled={moderateMutation.isPending}
+                                  >
+                                    <CheckCircle className="w-4 h-4 mr-2" />
+                                    Approve
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </DialogContent>
+                      </Dialog>
+                      
+                      {item.review.status === 'pending' && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-green-600"
+                            onClick={() => moderateMutation.mutate({ id: item.review.id, status: 'approved' })}
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600"
+                            onClick={() => moderateMutation.mutate({ id: item.review.id, status: 'rejected' })}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {(!reviews || reviews.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                    No reviews found
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

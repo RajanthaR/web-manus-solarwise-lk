@@ -657,15 +657,187 @@ Remember: Be honest about pros AND cons of hardware. Don't oversell - help users
       }),
   }),
 
+  // ============ REVIEWS ============
+  reviews: router({
+    // Create a new review (requires authentication)
+    create: protectedProcedure
+      .input(z.object({
+        packageId: z.number().optional(),
+        providerId: z.number().optional(),
+        overallRating: z.number().min(1).max(5),
+        installationRating: z.number().min(1).max(5).optional(),
+        performanceRating: z.number().min(1).max(5).optional(),
+        supportRating: z.number().min(1).max(5).optional(),
+        valueRating: z.number().min(1).max(5).optional(),
+        title: z.string().min(5).max(255),
+        content: z.string().min(20).max(5000),
+        pros: z.array(z.string()).optional(),
+        cons: z.array(z.string()).optional(),
+        installationDate: z.date().optional(),
+        systemSize: z.string().optional(),
+        monthlyGeneration: z.string().optional(),
+        previousBill: z.string().optional(),
+        currentBill: z.string().optional(),
+        photos: z.array(z.string()).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const id = await db.createReview({
+          ...input,
+          userId: ctx.user.id,
+          status: 'pending',
+        });
+        return { id };
+      }),
+    
+    // Get reviews for a package
+    byPackage: publicProcedure
+      .input(z.object({ packageId: z.number() }))
+      .query(async ({ input }) => {
+        const [reviewsList, avgRating] = await Promise.all([
+          db.getReviewsByPackage(input.packageId),
+          db.getPackageAverageRating(input.packageId),
+        ]);
+        return { reviews: reviewsList, averageRating: avgRating };
+      }),
+    
+    // Get reviews for a provider
+    byProvider: publicProcedure
+      .input(z.object({ providerId: z.number() }))
+      .query(async ({ input }) => {
+        const [reviewsList, avgRating] = await Promise.all([
+          db.getReviewsByProvider(input.providerId),
+          db.getProviderAverageRating(input.providerId),
+        ]);
+        return { reviews: reviewsList, averageRating: avgRating };
+      }),
+    
+    // Get user's own reviews
+    myReviews: protectedProcedure.query(async ({ ctx }) => {
+      return db.getReviewsByUser(ctx.user.id);
+    }),
+    
+    // Get single review by ID
+    getById: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getReviewById(input.id);
+      }),
+    
+    // Vote on a review (helpful/not helpful)
+    vote: protectedProcedure
+      .input(z.object({
+        reviewId: z.number(),
+        isHelpful: z.boolean(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.voteReview(input.reviewId, ctx.user.id, input.isHelpful);
+        return { success: true };
+      }),
+    
+    // Get user's vote for a review
+    myVote: protectedProcedure
+      .input(z.object({ reviewId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        return db.getUserVoteForReview(input.reviewId, ctx.user.id);
+      }),
+    
+    // Update own review
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        overallRating: z.number().min(1).max(5).optional(),
+        installationRating: z.number().min(1).max(5).optional(),
+        performanceRating: z.number().min(1).max(5).optional(),
+        supportRating: z.number().min(1).max(5).optional(),
+        valueRating: z.number().min(1).max(5).optional(),
+        title: z.string().min(5).max(255).optional(),
+        content: z.string().min(20).max(5000).optional(),
+        pros: z.array(z.string()).optional(),
+        cons: z.array(z.string()).optional(),
+        photos: z.array(z.string()).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const review = await db.getReviewById(input.id);
+        if (!review) throw new TRPCError({ code: 'NOT_FOUND' });
+        if (review.userId !== ctx.user.id && ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        
+        const { id, ...data } = input;
+        // Reset to pending if content changed
+        if (data.title || data.content) {
+          await db.updateReview(id, { ...data, status: 'pending' });
+        } else {
+          await db.updateReview(id, data);
+        }
+        return { success: true };
+      }),
+    
+    // Delete own review
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const review = await db.getReviewById(input.id);
+        if (!review) throw new TRPCError({ code: 'NOT_FOUND' });
+        if (review.userId !== ctx.user.id && ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        await db.deleteReview(input.id);
+        return { success: true };
+      }),
+    
+    // Admin: List all reviews with details
+    listAll: adminProcedure
+      .input(z.object({
+        status: z.enum(['pending', 'approved', 'rejected']).optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return db.getReviewsWithDetails(input?.status);
+      }),
+    
+    // Admin: Moderate review
+    moderate: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['approved', 'rejected']),
+        moderatorNote: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateReviewStatus(input.id, input.status, input.moderatorNote);
+        return { success: true };
+      }),
+    
+    // Admin: Verify review
+    verify: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        isVerified: z.boolean(),
+        verificationNote: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateReview(input.id, {
+          isVerified: input.isVerified,
+          verificationNote: input.verificationNote,
+        });
+        return { success: true };
+      }),
+    
+    // Get review statistics
+    stats: adminProcedure.query(async () => {
+      return db.getReviewStats();
+    }),
+  }),
+
   // ============ ADMIN STATS ============
   admin: router({
     stats: adminProcedure.query(async () => {
-      const [providers, packages, inquiries, panels, inverters] = await Promise.all([
+      const [providers, packages, inquiries, panels, inverters, reviewStats] = await Promise.all([
         db.getAllProviders(),
         db.getAllPackages(),
         db.getAllInquiries(),
         db.getAllPanels(),
         db.getAllInverters(),
+        db.getReviewStats(),
       ]);
       
       return {
@@ -675,6 +847,8 @@ Remember: Be honest about pros AND cons of hardware. Don't oversell - help users
         pendingInquiries: inquiries.filter(i => i.status === 'pending').length,
         totalPanels: panels.length,
         totalInverters: inverters.length,
+        totalReviews: reviewStats.total,
+        pendingReviews: reviewStats.pending,
       };
     }),
   }),
